@@ -71,9 +71,19 @@ buildStringValue :: DA.Value -> T.ThriftVal
 buildStringValue (DA.String s) = T.TString $ B.pack (unpack s)
 buildStringValue v = error $ "string type error" ++ show v
 
+mkJsonStringValue :: T.ThriftVal -> DA.Value
+mkJsonStringValue (T.TString s) = DA.String $ pack (B.unpack s)
+mkJsonStringValue v = error $ "string type error" ++ show v
+
+
 buildBoolValue :: DA.Value -> T.ThriftVal
 buildBoolValue (DA.Bool b) =  T.TBool b
 buildBoolValue v = error $ "bool type error" ++ show v
+
+mkJsonBoolValue :: T.ThriftVal -> DA.Value
+mkJsonBoolValue (T.TBool b) =  DA.Bool b
+mkJsonBoolValue v = error $ "bool type error" ++ show v
+
 
 buildByteValue :: DA.Value -> T.ThriftVal
 buildByteValue (DA.Number b) = case (S.floatingOrInteger b) of
@@ -82,12 +92,21 @@ buildByteValue (DA.Number b) = case (S.floatingOrInteger b) of
 buildByteValue v = error $ "byte type error" ++ show v
 
 
+mkJsonByteValue :: T.ThriftVal -> DA.Value
+mkJsonByteValue (T.TByte b) = DA.Number (read (show b) :: S.Scientific)
+mkJsonByteValue v = error $ "byte type error" ++ show v
+
+
+
 buildInt16Value :: DA.Value -> T.ThriftVal
 buildInt16Value (DA.Number b) = case (S.floatingOrInteger b) of
                                        Right i -> T.TI16 ((fromIntegral i) :: I.Int16)
                                        Left _ -> error $ "int16 type error" ++ show b
 buildInt16Value v = error $ "int16 type error" ++ show v
 
+mkJsonInt16Value :: T.ThriftVal -> DA.Value
+mkJsonInt16Value (T.TI16 i) = DA.Number (read (show i) :: S.Scientific)
+mkJsonInt16Value v = error $ "int16 type error" ++ show v
 
 
 buildInt32Value :: DA.Value -> T.ThriftVal
@@ -96,6 +115,9 @@ buildInt32Value (DA.Number b) = case (S.floatingOrInteger b) of
                                   Left _ -> error $ "int32 type error" ++ show b
 buildInt32Value v = error $ "int32 type error" ++ show v
 
+mkJsonInt32Value :: T.ThriftVal -> DA.Value
+mkJsonInt32Value (T.TI16 i) = DA.Number (read (show i) :: S.Scientific)
+mkJsonInt32Value v = error $ "int32 type error" ++ show v
 
 buildInt64Value :: DA.Value -> T.ThriftVal
 buildInt64Value (DA.Number b) = case (S.floatingOrInteger b) of
@@ -103,6 +125,9 @@ buildInt64Value (DA.Number b) = case (S.floatingOrInteger b) of
                                        Left _ -> error $ "int64 type error" ++ show b
 buildInt64Value v = error $ "int64 type error" ++ show v
 
+mkJsonInt64Value :: T.ThriftVal -> DA.Value
+mkJsonInt64Value (T.TI16 i) = DA.Number (read (show i) :: S.Scientific)
+mkJsonInt64Value v = error $ "int64 type error" ++ show v
 
 buildDoubleValue:: DA.Value -> T.ThriftVal
 buildDoubleValue (DA.Number b) = case (S.floatingOrInteger b) of
@@ -110,33 +135,60 @@ buildDoubleValue (DA.Number b) = case (S.floatingOrInteger b) of
                                        Left d -> T.TDouble d
 buildDoubleValue v = error $ "int64 type error" ++ show v
 
+mkJsonDoubleValue :: T.ThriftVal -> DA.Value
+mkJsonDoubleValue (T.TDouble i) = DA.Number (read (show i) :: S.Scientific)
+mkJsonDoubleValue v = error $ "double type error" ++ show v
+
 
 buildListValue
-  :: LT.Program Text.Megaparsec.Pos.SourcePos
-     -> Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos)
+  ::  Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos)
      -> LT.TypeReference Text.Megaparsec.Pos.SourcePos
      -> DA.Value
      -> T.ThriftVal
-buildListValue p hm typeName (DA.Array arr) =  T.TList (T.T_LIST $ typeTransformer typeName) $ map (\x -> buildValue p hm typeName x) $ V.toList arr
-buildListValue p hm typeName v = error $ "list type error" ++ show v
+buildListValue ps typeName (DA.Array arr) =  T.TList (T.T_LIST $ typeTransformer typeName) $ map (\x -> buildValue ps typeName x) $ V.toList arr
+buildListValue ps typeName v = error $ "list type error" ++ show v
+
+
+mkJsonArrayValue
+  :: LT.Program Text.Megaparsec.Pos.SourcePos
+     -> Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos)
+     -> LT.TypeReference Text.Megaparsec.Pos.SourcePos
+     -> T.ThriftVal
+     -> DA.Value
+mkJsonArrayValue p hm typeName (T.TList lType vals) =  DA.Array (V.fromList $ map (\v -> mkJsonValue p hm undefined v) vals)
+mkJsonArrayValue p hm typeName v = error $ "list type error" ++ show v
 
 
 buildMapValue
-  :: LT.Program Text.Megaparsec.Pos.SourcePos
-     -> Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos)
+  :: Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos)
      -> LT.TypeReference Text.Megaparsec.Pos.SourcePos
      -> LT.TypeReference Text.Megaparsec.Pos.SourcePos
      -> DA.Value
      -> T.ThriftVal
-buildMapValue p hm keyTypeName valTypeName (DA.Object m) =
-  let kvThriftVals = map (\ (k,v) -> ( (buildValue p hm keyTypeName $ DA.String k)
-                                     , (buildValue p hm valTypeName v))) $ Map.toList m
+buildMapValue ps keyTypeName valTypeName (DA.Object m) =
+  let kvThriftVals = map (\ (k,v) -> ( (buildValue ps keyTypeName $ DA.String k)
+                                     , (buildValue ps valTypeName v))) $ Map.toList m
   in T.TMap (typeTransformer keyTypeName) (typeTransformer valTypeName) kvThriftVals
 
-buildMapValue p hm keyTypeName valTypeName val = error $ "list type error" ++ show val
+buildMapValue ps keyTypeName valTypeName val = error $ "list type error" ++ show val
+
+
+mkJsonMapValue
+  :: LT.Program Text.Megaparsec.Pos.SourcePos
+     -> Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos)
+     -> LT.TypeReference Text.Megaparsec.Pos.SourcePos
+     -> LT.TypeReference Text.Megaparsec.Pos.SourcePos
+     -> T.ThriftVal
+     -> DA.Value
+mkJsonMapValue p hm keyTypeName valTypeName (T.TMap kType vType kvs) =
+  DA.Object $ Map.fromList $ map (\ (k,v) -> ( pack $ show k
+                                             , (mkJsonValue p hm undefined v))) kvs
+
+mkJsonMapValue p hm keyTypeName valTypeName val = error $ "list type error" ++ show val
 
 
 
+{--
 buildInnerStruct
   :: LT.Program Text.Megaparsec.Pos.SourcePos
      -> Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos)
@@ -147,57 +199,93 @@ buildInnerStruct p hm typeName (DA.Object mapVal) = buildStruct p hm (structDecl
 buildInnerStruct p hm typeName val = error $ "struct type error" ++ show val
 
 
-buildValue :: LT.Program Text.Megaparsec.Pos.SourcePos
-           -> Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos)
+--}
+
+
+
+buildTypeValue :: Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos)
+               -> Text
+               -> DA.Value
+               -> T.ThriftVal
+buildTypeValue ps typeName (DA.Object mapVal) =
+  -- todo need to check the type and the val type for this build. Impl it later.
+  buildStruct ps (structDecl ps typeName) mapVal
+buildTypeValue ps typeName v@(DA.Number b) = buildInt32Value v
+buildTypeValue ps typeName val = error $ "struct type error" ++ show val
+
+
+
+mkJsonObjectInnerStruct
+  :: LT.Program Text.Megaparsec.Pos.SourcePos
+     -> Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos)
+     -> Text
+     -> T.ThriftVal
+     -> DA.Value
+--mkJsonObjectInnerStruct p hm typeName (DA.Object mapVal) = buildStruct p hm (structDecl p typeName) mapVal
+mkJsonObjectInnerStruct p hm typeName val = error $ "struct type error" ++ show val
+
+
+buildValue :: Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos)
            -> LT.TypeReference Text.Megaparsec.Pos.SourcePos
            -> DA.Value
            -> T.ThriftVal
-buildValue p hm (LT.StringType _ _) v = buildStringValue v
-buildValue p hm (LT.BoolType _ _ ) v = buildBoolValue v
-buildValue p hm ( LT.ByteType _ _) v =  buildByteValue v
-buildValue p hm ( LT.I16Type _ _) v =  buildInt16Value v
-buildValue p hm ( LT.I32Type _ _) v =  buildInt32Value v
-buildValue p hm ( LT.I64Type _ _) v =  buildInt64Value v
-buildValue p hm ( LT.DoubleType _ _) v =  buildDoubleValue v
-buildValue p hm ( LT.ListType typeName _ _) v = buildListValue p hm typeName v
-buildValue p hm ( LT.MapType keyTypeName valTypeName _ _) v = buildMapValue p hm keyTypeName valTypeName v
-buildValue p hm ( LT.DefinedType typeName _) v = buildInnerStruct p hm (removePrefix typeName) v
+buildValue ps (LT.StringType _ _) v = buildStringValue v
+buildValue ps (LT.BoolType _ _ ) v = buildBoolValue v
+buildValue ps (LT.ByteType _ _) v =  buildByteValue v
+buildValue ps (LT.I16Type _ _) v =  buildInt16Value v
+buildValue ps (LT.I32Type _ _) v =  buildInt32Value v
+buildValue ps (LT.I64Type _ _) v =  buildInt64Value v
+buildValue ps (LT.DoubleType _ _) v =  buildDoubleValue v
+buildValue ps (LT.ListType typeName _ _) v = buildListValue ps typeName v
+buildValue ps (LT.MapType keyTypeName valTypeName _ _) v = buildMapValue ps keyTypeName valTypeName v
+buildValue ps (LT.DefinedType typeName _) v = buildTypeValue ps (removePrefix typeName) v
 
 
-
-buildField :: LT.Program Text.Megaparsec.Pos.SourcePos
+mkJsonValue :: LT.Program Text.Megaparsec.Pos.SourcePos
            -> Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos)
+           -> LT.TypeReference Text.Megaparsec.Pos.SourcePos
+           -> T.ThriftVal
+           -> DA.Value
+mkJsonValue p hm (LT.StringType _ _) v = mkJsonStringValue v
+mkJsonValue p hm (LT.BoolType _ _ ) v = mkJsonBoolValue v
+mkJsonValue p hm (LT.ByteType _ _) v =  mkJsonByteValue v
+mkJsonValue p hm (LT.I16Type _ _) v =  mkJsonInt16Value v
+mkJsonValue p hm (LT.I32Type _ _) v =  mkJsonInt32Value v
+mkJsonValue p hm (LT.I64Type _ _) v =  mkJsonInt64Value v
+mkJsonValue p hm (LT.DoubleType _ _) v =  mkJsonDoubleValue v
+mkJsonValue p hm (LT.ListType typeName _ _) v = mkJsonArrayValue p hm typeName v
+mkJsonValue p hm (LT.MapType keyTypeName valTypeName _ _) v = mkJsonMapValue p hm keyTypeName valTypeName v
+--mkJsonValue p hm (LT.DefinedType typeName _) v = buildInnerStruct p hm (removePrefix typeName) v
+
+
+splitName :: Text -> (String, Text)
+splitName name = let s = (splitOn "." $ unpack name)
+                 in if length s == 2
+                    then (head s, pack . head . tail $ s)
+                    else ("", name)
+
+
+buildField :: Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos)
            -> LT.Field Text.Megaparsec.Pos.SourcePos
            -> DA.Object -> Maybe (I.Int16, (L.Text, T.ThriftVal))
-buildField p hm f o = case mfval of Nothing-> Nothing
-                                    Just fval -> Just (idx, ( L.fromStrict fname
-                                                            , buildValue p' hm ftype $ M.fromJust mfval))
+buildField ps f o = case mfval of Nothing-> Nothing
+                                  Just fval -> Just (idx, ( L.fromStrict fname, buildValue ps ftype fval))
   where fname = LT.fieldName f
-        name = case LT.fieldValueType f of
-                 LT.DefinedType sName _ -> sName
-                 _ -> error "not impl type for "
-        hm' = hm
-        (p', name') = if length (splitOn "." $ unpack name) == 2
-                      then let [prefix, name''] = (splitOn "." $ unpack name)
-                           in  (hm ! prefix, name'')
-                      else (p, unpack name)
-
         ftype = LT.fieldValueType f
         idx = fromIntegral (M.fromJust $ LT.fieldIdentifier f) :: I.Int16
         mfval = Map.lookup fname o
 
 
-buildStruct :: LT.Program Text.Megaparsec.Pos.SourcePos
-            -> Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos)
+buildStruct :: Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos)
             -> LT.Struct Text.Megaparsec.Pos.SourcePos
             -> DA.Object
             -> T.ThriftVal
-buildStruct p hm decl obj = T.TStruct $ Map.fromList $ M.catMaybes buildFields
+buildStruct ps decl obj = T.TStruct $ Map.fromList $ M.catMaybes buildFields
   where fields = LT.structFields decl
         buildFields :: [Maybe (I.Int16, (L.Text, T.ThriftVal))]
-        buildFields = map (\f -> buildField p hm f obj) fields
+        buildFields = map (\f -> buildField ps f obj) fields
 
-
+{--
 structDecl :: LT.Program Text.Megaparsec.Pos.SourcePos -> Text -> LT.Struct Text.Megaparsec.Pos.SourcePos
 structDecl p name = M.fromJust $ find (\x -> LT.structName x == name) structList
   where
@@ -213,58 +301,124 @@ structDecl p name = M.fromJust $ find (\x -> LT.structName x == name) structList
          $ LT.programDefinitions p
 
 
-buildRequestParam
-  :: LT.Program Text.Megaparsec.Pos.SourcePos
-     -> Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos)
-     -> LT.Field Text.Megaparsec.Pos.SourcePos
-     -> Map.HashMap Text DA.Value
-     -> (I.Int16, (L.Text, T.ThriftVal))
-buildRequestParam p hm field obj = let idx = fromIntegral (M.fromJust (LT.fieldIdentifier field))
-                                       name = case LT.fieldValueType field of
-                                                LT.DefinedType sName _ -> sName
-                                                _ -> error "not impl type for "
+--}
+-- remove this function later.
+structDecl :: Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos)
+           -> Text
+           -> LT.Struct Text.Megaparsec.Pos.SourcePos
+structDecl ps name = case findDecl ps name of
+                      Left decl -> decl
+                      Right _ -> error $ "can not find struct" ++ show name
+
+
+findDecl :: Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos)
+         -> Text
+         -> Either (LT.Struct Text.Megaparsec.Pos.SourcePos) (LT.Enum Text.Megaparsec.Pos.SourcePos)
+findDecl ps name = if length declList == 1
+                     then head declList
+                     else error $ "can not find the decl " ++ show name
+  where
+    (prefix, name') = splitName name
+    p = M.fromJust $ Map.lookup prefix ps
+    decls = map (\ (LT.TypeDefinition x) -> x) $
+            filter (\ x -> case x of
+                             LT.TypeDefinition _ -> True
+                             _ -> False) $ LT.programDefinitions p
+
+    declList = M.catMaybes $
+                 map (\x -> case x of
+                              (LT.StructType s) -> if LT.structName s == name'
+                                                   then Just $ Left s
+                                                   else Nothing
+                              (LT.EnumType s) -> if LT.enumName s == name'
+                                                 then Just $ Right s
+                                                 else Nothing) decls
+
+
+
+
+
+buildRequestParam :: Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos)
+                  -> LT.Field Text.Megaparsec.Pos.SourcePos
+                  -> Map.HashMap Text DA.Value
+                  -> (I.Int16, (L.Text, T.ThriftVal))
+buildRequestParam ps field obj = let idx = fromIntegral (M.fromJust (LT.fieldIdentifier field))
+                                     name = case LT.fieldValueType field of
+                                              LT.DefinedType sName _ -> sName
+                                              _ -> error "not impl type for "
+                                     sd = (structDecl ps name)
+                                     tVal = buildStruct ps sd (findObject (LT.fieldName field) obj)
+                                 in (idx, (L.pack . unpack . removePrefix $ name, tVal))
+
+{--
+  let idx = fromIntegral (M.fromJust (LT.fieldIdentifier field))
+                                     p = undefined
+                                     name = case LT.fieldValueType field of
+                                              LT.DefinedType sName _ -> sName
+                                              _ -> error "not impl type for "
                                        sd = (structDecl p name)
                                        tVal = buildStruct p hm sd (findObject (LT.fieldName field) obj)
                                    in (idx, (L.pack $ unpack name, tVal))
+
+
+--}
   where
     findObject :: Text -> DA.Object -> DA.Object
-    findObject k obj = case v of
+    findObject k obj = case M.fromJust (Map.lookup k obj) of
                          DA.Object o -> o
                          _ -> error "error"
-      where
-        v = M.fromJust (Map.lookup k obj)
 
-buildRequest :: LT.Program Text.Megaparsec.Pos.SourcePos
-             -> Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos)
-             -> Text -> Text -> DA.Object -> T.ThriftVal
-buildRequest p hm sName fName obj = T.TStruct $ Map.fromList fields
+
+findServiceDecl :: LT.Program Text.Megaparsec.Pos.SourcePos -> Text -> LT.Service Text.Megaparsec.Pos.SourcePos
+findServiceDecl p sName = let definitions  = map (\ (LT.ServiceDefinition x) -> x) $
+                                             filter (\ x -> case x of
+                                                        LT.ServiceDefinition _ -> True
+                                                        _ -> False) $ LT.programDefinitions p
+                              Just serviceDecl = find (\x -> LT.serviceName x == sName) definitions
+                          in serviceDecl
+
+buildRequest :: Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos)
+             -> Text
+             -> Text
+             -> DA.Object
+             -> T.ThriftVal
+buildRequest ps sName fName obj = T.TStruct $ Map.fromList fields
   where
-    Just serviceDecl = find (\x -> LT.serviceName x == sName) $
-      map (\ (LT.ServiceDefinition x) -> x) $
-      filter (\ x -> case x of
-                   LT.ServiceDefinition _ -> True
-                   _ -> False) $
-      LT.programDefinitions p
-
+    p = M.fromJust (Map.lookup "" ps)
+    serviceDecl = findServiceDecl p sName
     Just funcDecl = find (\x -> LT.functionName x == fName) $ LT.serviceFunctions serviceDecl
-    fields = map (\x-> buildRequestParam p hm x obj) $ LT.functionParameters funcDecl
+    fields = map (\x-> buildRequestParam ps x obj) $ LT.functionParameters funcDecl
 
 
 buildTypeMap :: Text -> T.TypeMap
 buildTypeMap name = undefined
 
+
+buildResponse ::
+            LT.Program Text.Megaparsec.Pos.SourcePos ->
+            Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos) ->
+            Text ->
+            Text ->
+            T.ThriftVal -> DA.Object
+buildResponse p hm sName fName mapVal = undefined
+  where
+    serviceDecl = findServiceDecl p sName
+    Just funcDecl = find (\x -> LT.functionName x == fName) $ LT.serviceFunctions serviceDecl
+    Just (LT.DefinedType retName _) = LT.functionReturnType funcDecl
+    -- sd = structDecl p name
+
+
 sendFunc :: (Protocol p, Protocol p, Transport t, Transport t) =>
             (p t, p t) ->
-            LT.Program Text.Megaparsec.Pos.SourcePos ->
             Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos) ->
             Text ->
             Text ->
             DA.Object ->
             IO (Map.HashMap I.Int16 (L.Text, T.ThriftVal))
-sendFunc (ip,op) p hm sName fName vals = do
+sendFunc (ip,op) ps sName fName vals = do
   seq <- seqid
   seqn <- R.readIORef seq
-  let req = buildRequest p hm sName fName vals
+  let req = buildRequest ps sName fName vals
 
   T.writeMessageBegin op (L.fromStrict fName, T.M_CALL, seqn)
   T.writeVal op req
@@ -281,3 +435,11 @@ sendFunc (ip,op) p hm sName fName vals = do
   let T.TStruct mapVal = thriftVal
   let Just (_, T.TStruct retVal)  = Map.lookup (0 :: I.Int16) mapVal
   return retVal
+
+
+
+
+devfun2 = do
+  Right p <- LT.parseFromFile "/home/savior/data/github.repo/programming/haskell/thrift-cli/IDL/base.thrift"
+  let ps = LT.programDefinitions p
+  return (ps !! 0 , ps !! 1)

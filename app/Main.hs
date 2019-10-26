@@ -86,10 +86,11 @@ main = do
                                              (LT.HeaderInclude _) -> True
                                              _ -> False) $ LT.programHeaders p
   let hm = Map.fromList headerFilesPath'
+  let ps = Map.insert "" p hm
   let jsonObject = parsePayload payload payloadType
   handle  <- hOpen (ip :: String, Service port)
   let client = (BinaryProtocol handle, BinaryProtocol handle)
-  result <- sendFunc client p hm  (pack sName) (pack fName) $ M.fromJust jsonObject
+  result <- sendFunc client ps (pack sName) (pack fName) $ M.fromJust jsonObject
   print result
   where
     opts = info (helper <*> parseArgs)
