@@ -238,7 +238,7 @@ buildValue ps (LT.I64Type _ _) v =  buildInt64Value v
 buildValue ps (LT.DoubleType _ _) v =  buildDoubleValue v
 buildValue ps (LT.ListType typeName _ _) v = buildListValue ps typeName v
 buildValue ps (LT.MapType keyTypeName valTypeName _ _) v = buildMapValue ps keyTypeName valTypeName v
-buildValue ps (LT.DefinedType typeName _) v = buildTypeValue ps (removePrefix typeName) v
+buildValue ps (LT.DefinedType typeName _) v = buildTypeValue ps typeName v
 
 
 mkJsonValue :: LT.Program Text.Megaparsec.Pos.SourcePos
@@ -405,7 +405,6 @@ buildResponse p hm sName fName mapVal = undefined
     serviceDecl = findServiceDecl p sName
     Just funcDecl = find (\x -> LT.functionName x == fName) $ LT.serviceFunctions serviceDecl
     Just (LT.DefinedType retName _) = LT.functionReturnType funcDecl
-    -- sd = structDecl p name
 
 
 sendFunc :: (Protocol p, Protocol p, Transport t, Transport t) =>
@@ -435,11 +434,3 @@ sendFunc (ip,op) ps sName fName vals = do
   let T.TStruct mapVal = thriftVal
   let Just (_, T.TStruct retVal)  = Map.lookup (0 :: I.Int16) mapVal
   return retVal
-
-
-
-
-devfun2 = do
-  Right p <- LT.parseFromFile "/home/savior/data/github.repo/programming/haskell/thrift-cli/IDL/base.thrift"
-  let ps = LT.programDefinitions p
-  return (ps !! 0 , ps !! 1)
