@@ -10,6 +10,7 @@ module Main where
 import Cmd.Lib (sendFunc, buildRequest)
 import Data.Text (pack, unpack)
 import qualified Data.Aeson as DA
+import Data.Aeson.Encode.Pretty (encodePretty)
 import qualified Data.ByteString.Lazy.Char8 as B
 import qualified Language.Thrift.Parser as LT
 import qualified Language.Thrift.AST as LT
@@ -91,7 +92,8 @@ main = do
   handle  <- hOpen (ip :: String, Service port)
   let client = (BinaryProtocol handle, BinaryProtocol handle)
   result <- sendFunc client ps (pack sName) (pack fName) $ M.fromJust jsonObject
-  print result
+  B.putStrLn $ encodePretty result
+
   where
     opts = info (helper <*> parseArgs)
       (fullDesc <> header "thrift cli")
