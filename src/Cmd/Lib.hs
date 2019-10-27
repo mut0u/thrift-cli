@@ -12,7 +12,7 @@ import qualified Data.HashMap.Strict as Map
 import Data.HashMap.Strict((!))
 import qualified Data.Int as I
 import Data.Text (Text, pack, unpack)
-import Data.Text.Encoding (decodeUtf8)
+import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import qualified Data.Text.Lazy as L
 import qualified Data.Vector as V
 import qualified Thrift as T
@@ -69,7 +69,8 @@ buildMapType keyTypeName valTypeName = T.T_MAP (typeTransformer keyTypeName) (ty
 
 
 buildStringValue :: DA.Value -> T.ThriftVal
-buildStringValue (DA.String s) = T.TString $ B.pack (unpack s)
+--buildStringValue (DA.String s) = T.TString $  B.pack (unpack s)
+buildStringValue (DA.String s) = T.TString $ B.fromStrict $ encodeUtf8 s
 buildStringValue v = error $ "string type error" ++ show v
 
 mkJsonStringValue :: T.ThriftVal -> DA.Value
@@ -155,7 +156,7 @@ mkJsonArrayValue :: Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos
                  -> LT.TypeReference Text.Megaparsec.Pos.SourcePos
                  -> T.ThriftVal
                  -> DA.Value
-mkJsonArrayValue ps typeName (T.TList lType vals) =  DA.Array (V.fromList $ map (\v -> mkJsonValue ps undefined v) vals)
+mkJsonArrayValue ps typeName (T.TList lType vals) =  DA.Array (V.fromList $ map (\v -> mkJsonValue ps typeName v) vals)
 mkJsonArrayValue ps typeName v = error $ "list type error" ++ show v
 
 
@@ -177,6 +178,10 @@ mkJsonMapValue :: Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos)
                -> LT.TypeReference Text.Megaparsec.Pos.SourcePos
                -> T.ThriftVal
                -> DA.Value
+mkJsonMapValue ps (LT.StringType _ _) valTypeName (T.TMap kType vType kvs) =
+  DA.Object $ Map.fromList $ map (\ (T.TString k,v) -> ( decodeUtf8 . B.toStrict $ k
+                                                       , (mkJsonValue ps valTypeName v))) kvs
+
 mkJsonMapValue ps keyTypeName valTypeName (T.TMap kType vType kvs) =
   DA.Object $ Map.fromList $ map (\ (k,v) -> ( pack $ show k
                                              , (mkJsonValue ps valTypeName v))) kvs

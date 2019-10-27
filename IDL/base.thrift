@@ -6,6 +6,17 @@ enum Status {
     Off = 2     // 下线
 }
 
+struct TestMessage {
+  1: map<string, i32> m1,
+  2: map<DemoMessage, DemoMessage> m2,
+}
+
+
+struct Test2Message {
+  1: list<DemoMessage> ms,
+}
+
+
 struct BaseMessage {
   1: string str,
   2: bool flag,
