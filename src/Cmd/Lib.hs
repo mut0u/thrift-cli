@@ -420,5 +420,8 @@ sendFunc (ip,op) ps sName fName vals = do
   thriftVal <- T.readVal ip (T.T_STRUCT resultType)
   T.readMessageEnd ip
   let T.TStruct mapVal = thriftVal
-  let Just (_, T.TStruct retVal)  = Map.lookup (0 :: I.Int16) mapVal
+  let T.TStruct retVal  = case Map.lookup (0 :: I.Int16) mapVal of
+                                      Just (_, T.TStruct v) -> T.TStruct v
+                                      Just (_, v) -> error $ "unexcept response " ++ show v
+                                      Nothing -> error $ "empty response " ++ show thriftVal
   return $ buildResponse ps sName fName (T.TStruct retVal)
