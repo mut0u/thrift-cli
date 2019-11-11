@@ -428,5 +428,4 @@ sendFunc (ip,op) ps sName fName vals = do
                                       Just (_, T.TStruct v) -> T.TStruct v
                                       Just (_, v) -> error $ "unexcept response " ++ show v
                                       Nothing -> error $ "empty response " ++ show thriftVal
-  print retVal
   return $ buildResponse ps sName fName (T.TStruct retVal)
