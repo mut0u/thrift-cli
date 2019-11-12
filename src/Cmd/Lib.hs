@@ -334,7 +334,7 @@ findDecl ps name = if length declList == 1
                               (LT.EnumType s) -> if LT.enumName s == name'
                                                  then Just $ Right (Map.insert "" p ps, s)
                                                  else Nothing
-                              _ -> error $ "can not parse the type" ++ show x
+                              _ -> error $ "can not parse the type " ++ show x
                      ) decls
 
 
