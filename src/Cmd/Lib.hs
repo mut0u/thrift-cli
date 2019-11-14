@@ -188,30 +188,26 @@ mkJsonMapValue ps keyTypeName valTypeName (T.TMap kType vType kvs) =
 
 mkJsonMapValue ps keyTypeName valTypeName val = error $ "list type error" ++ show val
 
-
-
-buildTypeValue :: Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos)
-               -> Text
-               -> DA.Value
-               -> T.ThriftVal
-buildTypeValue ps typeName (DA.Object mapVal) =
-  -- todo need to check the type and the val type for this build. Impl it later.
-  -- this has the bug about ps need change
-  buildStruct ps' decl  mapVal
-  where (ps', decl) = (structDecl ps typeName)
-buildTypeValue ps typeName v@(DA.Number b) = buildInt32Value v
-buildTypeValue ps typeName val = error $ "struct or enmu type error" ++ show val
-
+buildDefinedTypeValue :: Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos)
+                      -> (LT.Type Text.Megaparsec.Pos.SourcePos)
+                      -> Text
+                      -> DA.Value
+                      -> T.ThriftVal
+buildDefinedTypeValue ps (LT.StructType decl) typeName v@(DA.Object mapVal) = buildStruct ps decl mapVal
+buildDefinedTypeValue ps (LT.TypedefType defType) typeName v = buildValue ps (LT.typedefTargetType defType) v
+buildDefinedTypeValue ps (LT.EnumType _) typeName v@(DA.Number b) = buildInt32Value v
+buildDefinedTypeValue ps _ typeName val = error $ "struct or enum type error" ++ show val
 
 
 mkJsonObjectTypeValue :: Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos)
+                      -> (LT.Type Text.Megaparsec.Pos.SourcePos)
                       -> Text
                       -> T.ThriftVal
                       -> DA.Value
-                                                     -- this has the bug about the typeName has prefix then ps need change.
-mkJsonObjectTypeValue ps typeName (T.TStruct mapVal) = mkJsonStruct ps' decl  mapVal
-  where (ps', decl) = (structDecl ps typeName)
-mkJsonObjectTypeValue ps typeName val = error $ "struct or enum type error" ++ show val
+mkJsonObjectTypeValue ps (LT.StructType decl) typeName (T.TStruct mapVal) = mkJsonStruct ps decl mapVal
+mkJsonObjectTypeValue ps (LT.TypedefType defType) typeName v = mkJsonValue ps (LT.typedefTargetType defType) v
+mkJsonObjectTypeValue ps (LT.EnumType _) typeName v = mkJsonInt32Value v
+mkJsonObjectTypeValue ps _ typeName val = error $ "struct or enum type error" ++ show val
 
 
 buildValue :: Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos)
@@ -227,7 +223,9 @@ buildValue ps (LT.I64Type _ _) v =  buildInt64Value v
 buildValue ps (LT.DoubleType _ _) v =  buildDoubleValue v
 buildValue ps (LT.ListType typeName _ _) v = buildListValue ps typeName v
 buildValue ps (LT.MapType keyTypeName valTypeName _ _) v = buildMapValue ps keyTypeName valTypeName v
-buildValue ps (LT.DefinedType typeName _) v = buildTypeValue ps typeName v
+buildValue ps (LT.DefinedType typeName _) v = case (findDecl ps typeName) of
+                                                Just (ps', t) -> buildDefinedTypeValue ps' t typeName v
+                                                Nothing -> error $ show "can not build type " ++ (show typeName)
 
 
 mkJsonValue :: Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos)
@@ -243,7 +241,10 @@ mkJsonValue ps (LT.I64Type _ _) v =  mkJsonInt64Value v
 mkJsonValue ps (LT.DoubleType _ _) v =  mkJsonDoubleValue v
 mkJsonValue ps (LT.ListType typeName _ _) v = mkJsonArrayValue ps typeName v
 mkJsonValue ps (LT.MapType keyTypeName valTypeName _ _) v = mkJsonMapValue ps keyTypeName valTypeName v
-mkJsonValue ps (LT.DefinedType typeName _) v = mkJsonObjectTypeValue ps typeName v
+mkJsonValue ps (LT.DefinedType typeName _) v = -- mkJsonObjectTypeValue ps typeName v
+  case (findDecl ps typeName) of
+    Just (ps', t) -> mkJsonObjectTypeValue ps' t typeName v
+    Nothing -> error $ show "can not build type " ++ (show typeName)
 
 
 splitName :: Text -> (String, Text)
@@ -301,20 +302,9 @@ mkJsonStruct ps decl m = DA.Object $ Map.fromList $ M.catMaybes buildFields
                                       Just kv' -> Just $ mkField ps f kv') fields
 
 
--- remove this function later.
-structDecl :: Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos)
-           -> Text
-           -> (Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos), LT.Struct Text.Megaparsec.Pos.SourcePos)
-structDecl ps name = case findDecl ps name of
-                       Just (Left decl) -> decl
-                       Just (Right _) -> error $ "can not find struct" ++ show name
-                       Nothing -> error $ "can not find struct" ++ show name
-
 findDecl :: Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos)
          -> Text
-         -> Maybe (Either
-                    (Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos), LT.Struct Text.Megaparsec.Pos.SourcePos)
-                    (Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos), LT.Enum Text.Megaparsec.Pos.SourcePos))
+         -> Maybe (Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos), LT.Type Text.Megaparsec.Pos.SourcePos)
 findDecl ps name = if length declList == 1
                      then Just $ head declList
                      else Nothing
@@ -327,37 +317,21 @@ findDecl ps name = if length declList == 1
                              _ -> False) $ LT.programDefinitions p
 
     declList = M.catMaybes $
+               -- maybe can use lens function
                  map (\x -> case x of
-                              (LT.StructType s) -> if LT.structName s == name'
-                                                   then Just $ Left (Map.insert "" p ps, s)
-                                                   else Nothing
-                              (LT.EnumType s) -> if LT.enumName s == name'
-                                                 then Just $ Right (Map.insert "" p ps, s)
-                                                 else Nothing
+                              x1@(LT.StructType s) -> if LT.structName s == name'
+                                                      then Just (Map.insert "" p ps, x1)
+                                                      else Nothing
+                              x1@(LT.EnumType s) -> if LT.enumName s == name'
+                                                    then Just (Map.insert "" p ps, x1)
+                                                    else Nothing
+                              x1@(LT.TypedefType s) -> if LT.typedefName s == name'
+                                                       then Just (Map.insert "" p ps, x1)
+                                                       else Nothing
+
                               _ -> error $ "can not parse the type " ++ show x
                      ) decls
 
-
-
-
-
-buildRequestParam :: Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos)
-                  -> LT.Field Text.Megaparsec.Pos.SourcePos
-                  -> Map.HashMap Text DA.Value
-                  -> (I.Int16, (L.Text, T.ThriftVal))
-buildRequestParam ps field obj = let idx = fromIntegral (M.fromJust (LT.fieldIdentifier field))
-                                     name = case LT.fieldValueType field of
-                                              LT.DefinedType sName _ -> sName
-                                              _ -> error "not impl type for "
-                                     (ps', sd) = (structDecl ps name)
-                                     tVal = buildStruct ps' sd (findObject (LT.fieldName field) obj)
-                                 in (idx, (L.pack . unpack . removePrefix $ name, tVal))
-
-  where
-    findObject :: Text -> DA.Object -> DA.Object
-    findObject k obj = case M.fromJust (Map.lookup k obj) of
-                         DA.Object o -> o
-                         _ -> error "error"
 
 
 findServiceDecl :: LT.Program Text.Megaparsec.Pos.SourcePos
@@ -375,12 +349,12 @@ buildRequest :: Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos)
              -> Text
              -> DA.Object
              -> T.ThriftVal
-buildRequest ps sName fName obj = T.TStruct $ Map.fromList fields
+buildRequest ps sName fName obj = T.TStruct $ Map.fromList $ M.catMaybes fields
   where
     p = M.fromJust (Map.lookup "" ps)
     serviceDecl = findServiceDecl p sName
     Just funcDecl = find (\x -> LT.functionName x == fName) $ LT.serviceFunctions serviceDecl
-    fields = map (\x-> buildRequestParam ps x obj) $ LT.functionParameters funcDecl
+    fields = map (\x-> buildField ps x obj) $ LT.functionParameters funcDecl
 
 
 buildTypeMap :: Text -> T.TypeMap
@@ -394,6 +368,13 @@ buildResponse :: Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos)
               -> DA.Value
 buildResponse ps sName fName tVal = mkJsonStruct ps' decl mapVal
   where
+    structDecl :: Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos)
+               -> Text
+               -> (Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos), LT.Struct Text.Megaparsec.Pos.SourcePos)
+    structDecl ps name = case findDecl ps name of
+                       Just (ps, LT.StructType decl) -> (ps, decl)
+                       Nothing -> error $ "can not find struct" ++ show name
+
     p = M.fromJust (Map.lookup "" ps)
     serviceDecl = findServiceDecl p sName
     Just funcDecl = find (\x -> LT.functionName x == fName) $ LT.serviceFunctions serviceDecl

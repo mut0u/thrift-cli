@@ -27,5 +27,6 @@ thrift-cli  binary//127.0.0.1:9091/DemoService/demoFunction -d '{"msg1":{"msg":"
 
 ## TODO
 - [ ] thrift transport protocol
-- [ ] payload type
+- [X] payload type
+- [ ] typedef
 - [ ] dir param . use the `serviceName` and `functionName` to find the thrift file.
