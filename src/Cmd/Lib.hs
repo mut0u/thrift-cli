@@ -52,6 +52,7 @@ removePrefix name =  if length (splitOn "." $ unpack name) == 2
 
 
 typeTransformer (LT.StringType _ _) = T.T_STRING
+typeTransformer (LT.BinaryType _ _) = T.T_STRING
 typeTransformer (LT.BoolType _ _ )  = T.T_BOOL
 typeTransformer (LT.ByteType _ _) = T.T_BYTE
 typeTransformer (LT.I16Type _ _) = T.T_I16
@@ -200,7 +201,7 @@ buildDefinedTypeValue ps _ typeName val = error $ "struct or enum type error" ++
 
 
 mkJsonObjectTypeValue :: Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos)
-                      -> (LT.Type Text.Megaparsec.Pos.SourcePos)
+                      -> LT.Type Text.Megaparsec.Pos.SourcePos
                       -> Text
                       -> T.ThriftVal
                       -> DA.Value
@@ -215,6 +216,7 @@ buildValue :: Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos)
            -> DA.Value
            -> T.ThriftVal
 buildValue ps (LT.StringType _ _) v = buildStringValue v
+buildValue ps (LT.BinaryType _ _) v = buildStringValue v
 buildValue ps (LT.BoolType _ _ ) v = buildBoolValue v
 buildValue ps (LT.ByteType _ _) v =  buildByteValue v
 buildValue ps (LT.I16Type _ _) v =  buildInt16Value v
@@ -223,9 +225,9 @@ buildValue ps (LT.I64Type _ _) v =  buildInt64Value v
 buildValue ps (LT.DoubleType _ _) v =  buildDoubleValue v
 buildValue ps (LT.ListType typeName _ _) v = buildListValue ps typeName v
 buildValue ps (LT.MapType keyTypeName valTypeName _ _) v = buildMapValue ps keyTypeName valTypeName v
-buildValue ps (LT.DefinedType typeName _) v = case (findDecl ps typeName) of
+buildValue ps (LT.DefinedType typeName _) v = case findDecl ps typeName of
                                                 Just (ps', t) -> buildDefinedTypeValue ps' t typeName v
-                                                Nothing -> error $ show "can not build type " ++ (show typeName)
+                                                Nothing -> error $ show "can not build type " ++ show typeName
 
 
 mkJsonValue :: Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos)
@@ -233,6 +235,7 @@ mkJsonValue :: Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos)
             -> T.ThriftVal
             -> DA.Value
 mkJsonValue ps (LT.StringType _ _) v = mkJsonStringValue v
+mkJsonValue ps (LT.BinaryType _ _) v = mkJsonStringValue v
 mkJsonValue ps (LT.BoolType _ _ ) v = mkJsonBoolValue v
 mkJsonValue ps (LT.ByteType _ _) v =  mkJsonByteValue v
 mkJsonValue ps (LT.I16Type _ _) v =  mkJsonInt16Value v
@@ -245,7 +248,6 @@ mkJsonValue ps (LT.DefinedType typeName _) v = -- mkJsonObjectTypeValue ps typeN
   case findDecl ps typeName of
     Just (ps', t) -> mkJsonObjectTypeValue ps' t typeName v
     Nothing -> error $ show "can not build type " ++ show typeName
-mkJsonValue ps _ v = error $ show "can not build value " ++ show v
 
 splitName :: Text -> (String, Text)
 splitName name = let s = (splitOn "." $ unpack name)

@@ -47,7 +47,7 @@ library:
   source-dirs: src
 
 executables:
-  thrift-cli-exe:
+  thrift-cli:
     main:                Main.hs
     source-dirs:         app
     ghc-options:
