@@ -242,10 +242,10 @@ mkJsonValue ps (LT.DoubleType _ _) v =  mkJsonDoubleValue v
 mkJsonValue ps (LT.ListType typeName _ _) v = mkJsonArrayValue ps typeName v
 mkJsonValue ps (LT.MapType keyTypeName valTypeName _ _) v = mkJsonMapValue ps keyTypeName valTypeName v
 mkJsonValue ps (LT.DefinedType typeName _) v = -- mkJsonObjectTypeValue ps typeName v
-  case (findDecl ps typeName) of
+  case findDecl ps typeName of
     Just (ps', t) -> mkJsonObjectTypeValue ps' t typeName v
-    Nothing -> error $ show "can not build type " ++ (show typeName)
-
+    Nothing -> error $ show "can not build type " ++ show typeName
+mkJsonValue ps _ v = error $ show "can not build value " ++ show v
 
 splitName :: Text -> (String, Text)
 splitName name = let s = (splitOn "." $ unpack name)
