@@ -149,15 +149,15 @@ buildListValue :: Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos)
                -> LT.TypeReference Text.Megaparsec.Pos.SourcePos
                -> DA.Value
                -> T.ThriftVal
-buildListValue ps typeName (DA.Array arr) =  T.TList (T.T_LIST $ typeTransformer typeName) $ map (\x -> buildValue ps typeName x) $ V.toList arr
-buildListValue ps typeName v = error $ "list type error" ++ show v
+buildListValue ps typeName (DA.Array arr) =  T.TList (T.T_LIST $ typeTransformer typeName) $ map (buildValue ps typeName) $ V.toList arr
+buildListValue ps typeName v = error $ "list type error: type" ++ show typeName ++ " value :" ++ show v
 
 
 mkJsonArrayValue :: Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos)
                  -> LT.TypeReference Text.Megaparsec.Pos.SourcePos
                  -> T.ThriftVal
                  -> DA.Value
-mkJsonArrayValue ps typeName (T.TList lType vals) =  DA.Array (V.fromList $ map (\v -> mkJsonValue ps typeName v) vals)
+mkJsonArrayValue ps typeName (T.TList lType vals) =  DA.Array (V.fromList $ map (mkJsonValue ps typeName) vals)
 mkJsonArrayValue ps typeName v = error $ "list type error" ++ show v
 
 
