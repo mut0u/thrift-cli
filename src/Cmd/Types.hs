@@ -1,11 +1,7 @@
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE PackageImports #-}
+-- |
 
-module Cmd.Lib ( buildRequest
-               ) where
+module Cmd.Types where
 
 import qualified Data.IORef as R
 import qualified Data.HashMap.Strict as Map
@@ -15,9 +11,7 @@ import Data.Text (Text, pack, unpack)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import qualified Data.Text.Lazy as L
 import qualified Data.Vector as V
-import qualified Thrift as T
-import qualified Thrift.Types as T
-import qualified Thrift.Arbitraries as T
+import qualified Thrift.Type as Thrift
 import qualified Data.Aeson as DA
 import qualified Data.Aeson.Types as DA
 import qualified Data.ByteString.Lazy.Char8 as B
@@ -33,6 +27,8 @@ import qualified Control.Monad as M ( liftM, ap, when )
 import qualified Control.Exception as X
 import Data.List.Split (splitOn)
 import qualified Text.Megaparsec.Pos
+import Data.Binary.Put
+import Data.Binary.Get
 import System.FilePath.Posix (takeDirectory, takeBaseName, FilePath)
 
 
@@ -43,114 +39,105 @@ removePrefix name = let ns = (splitOn "." $ unpack name)
                          2 -> pack . head . init $ ns
                          _ -> name
 
-
-
-typeTransformer (LT.StringType _ _) = T.T_STRING
-typeTransformer (LT.BinaryType _ _) = T.T_STRING
-typeTransformer (LT.BoolType _ _ )  = T.T_BOOL
-typeTransformer (LT.ByteType _ _) = T.T_BYTE
-typeTransformer (LT.I16Type _ _) = T.T_I16
-typeTransformer (LT.I32Type _ _) = T.T_I32
-typeTransformer (LT.I64Type _ _) = T.T_I64
-typeTransformer (LT.DoubleType _ _) = T.T_DOUBLE
+typeTransformer (LT.StringType _ _) = Thrift.TC_Binary
+typeTransformer (LT.BinaryType _ _) = Thrift.TC_Binary
+typeTransformer (LT.BoolType _ _ )  = Thrift.TC_Bool
+typeTransformer (LT.ByteType _ _) = Thrift.TC_Int16
+typeTransformer (LT.I16Type _ _) = Thrift.TC_Int16
+typeTransformer (LT.I32Type _ _) = Thrift.TC_Int32
+typeTransformer (LT.I64Type _ _) = Thrift.TC_Int64
+typeTransformer (LT.DoubleType _ _) = Thrift.TC_Double
 typeTransformer _ = error "can not find type"
 
 
-buildListType :: LT.TypeReference srcAnnot -> T.ThriftType
-buildListType typeName =  T.T_LIST $  typeTransformer typeName
 
-buildMapType :: LT.TypeReference srcAnnot -> LT.TypeReference srcAnnot -> T.ThriftType
-buildMapType keyTypeName valTypeName = T.T_MAP (typeTransformer keyTypeName) (typeTransformer valTypeName)
-
-
-buildStringValue :: DA.Value -> T.ThriftVal
-buildStringValue (DA.String s) = T.TString $ B.fromStrict $ encodeUtf8 s
+buildStringValue :: DA.Value -> Thrift.TValue
+buildStringValue (DA.String s) = Thrift.toTValue $ encodeUtf8 s
 buildStringValue v = error $ "string type error" ++ show v
 
-mkJsonStringValue :: T.ThriftVal -> DA.Value
-mkJsonStringValue (T.TString s) = DA.String $ decodeUtf8 . B.toStrict $ s
+mkJsonStringValue :: Thrift.TValue -> DA.Value
+mkJsonStringValue (Thrift.TBinary s) = DA.String (decodeUtf8 s)
 mkJsonStringValue v = error $ "string type error" ++ show v
 
 
-buildBoolValue :: DA.Value -> T.ThriftVal
-buildBoolValue (DA.Bool b) =  T.TBool b
+buildBoolValue :: DA.Value -> Thrift.TValue
+buildBoolValue (DA.Bool b) =  Thrift.toTValue b
 buildBoolValue v = error $ "bool type error" ++ show v
 
-mkJsonBoolValue :: T.ThriftVal -> DA.Value
-mkJsonBoolValue (T.TBool b) =  DA.Bool b
+mkJsonBoolValue :: Thrift.TValue -> DA.Value
+mkJsonBoolValue (Thrift.TBool b) =  DA.Bool b
 mkJsonBoolValue v = error $ "bool type error" ++ show v
 
 
-buildByteValue :: DA.Value -> T.ThriftVal
-buildByteValue (DA.Number b) = case (S.floatingOrInteger b) of
-                                       Right i -> T.TByte ((fromIntegral i) :: I.Int8)
-                                       Left _ -> error $ "byte type error" ++ show b
+buildByteValue :: DA.Value -> Thrift.TValue
+buildByteValue (DA.Number b) = case S.floatingOrInteger b of
+                                 Right i -> Thrift.toTValue (fromIntegral i :: I.Int8)
+                                 Left _ -> error $ "byte type error" ++ show b
 buildByteValue v = error $ "byte type error" ++ show v
 
 
-mkJsonByteValue :: T.ThriftVal -> DA.Value
-mkJsonByteValue (T.TByte b) = DA.Number (read (show b) :: S.Scientific)
+mkJsonByteValue :: Thrift.TValue -> DA.Value
+mkJsonByteValue (Thrift.TInt8 b) = DA.Number (read (show b) :: S.Scientific)
 mkJsonByteValue v = error $ "byte type error" ++ show v
 
 
-
-buildInt16Value :: DA.Value -> T.ThriftVal
-buildInt16Value (DA.Number b) = case (S.floatingOrInteger b) of
-                                       Right i -> T.TI16 ((fromIntegral i) :: I.Int16)
+buildInt16Value :: DA.Value -> Thrift.TValue
+buildInt16Value (DA.Number b) = case S.floatingOrInteger b of
+                                       Right i -> Thrift.toTValue (fromIntegral i :: I.Int16)
                                        Left _ -> error $ "int16 type error" ++ show b
 buildInt16Value v = error $ "int16 type error" ++ show v
 
 
 -- todo fix the integer parse to float.
-mkJsonInt16Value :: T.ThriftVal -> DA.Value
-mkJsonInt16Value (T.TI16 i) = DA.Number (read (show i) :: S.Scientific)
+mkJsonInt16Value :: Thrift.TValue -> DA.Value
+mkJsonInt16Value (Thrift.TInt16 i) = DA.Number (read (show i) :: S.Scientific)
 mkJsonInt16Value v = error $ "int16 type error" ++ show v
 
 
-buildInt32Value :: DA.Value -> T.ThriftVal
-buildInt32Value (DA.Number b) = case (S.floatingOrInteger b) of
-                                  Right i -> T.TI32 ((fromIntegral i) :: I.Int32)
+buildInt32Value :: DA.Value -> Thrift.TValue
+buildInt32Value (DA.Number b) = case S.floatingOrInteger b of
+                                  Right i -> Thrift.toTValue (fromIntegral i :: I.Int32)
                                   Left _ -> error $ "int32 type error" ++ show b
 buildInt32Value v = error $ "int32 type error" ++ show v
 
-mkJsonInt32Value :: T.ThriftVal -> DA.Value
-mkJsonInt32Value (T.TI32 i) = DA.Number (read (show i) :: S.Scientific)
+mkJsonInt32Value :: Thrift.TValue -> DA.Value
+mkJsonInt32Value (Thrift.TInt32 i) = DA.Number (read (show i) :: S.Scientific)
 mkJsonInt32Value v = error $ "int32 type error" ++ show v
 
-buildInt64Value :: DA.Value -> T.ThriftVal
-buildInt64Value (DA.Number b) = case (S.floatingOrInteger b) of
-                                       Right i -> T.TI64 ((fromIntegral i) :: I.Int64)
-                                       Left _ -> error $ "int64 type error" ++ show b
+buildInt64Value :: DA.Value -> Thrift.TValue
+buildInt64Value (DA.Number b) = case S.floatingOrInteger b of
+                                  Right i -> Thrift.toTValue (fromIntegral i :: I.Int64)
+                                  Left _ -> error $ "int64 type error" ++ show b
 buildInt64Value v = error $ "int64 type error" ++ show v
 
-mkJsonInt64Value :: T.ThriftVal -> DA.Value
-mkJsonInt64Value (T.TI64 i) = DA.Number (read (show i) :: S.Scientific)
+mkJsonInt64Value :: Thrift.TValue-> DA.Value
+mkJsonInt64Value (Thrift.TInt64 i) = DA.Number (read (show i) :: S.Scientific)
 mkJsonInt64Value v = error $ "int64 type error" ++ show v
 
-buildDoubleValue :: DA.Value -> T.ThriftVal
-buildDoubleValue (DA.Number b) = case (S.floatingOrInteger b) of
+buildDoubleValue :: DA.Value -> Thrift.TValue
+buildDoubleValue (DA.Number b) = case S.floatingOrInteger b of
                                        Right _ ->  error $ "double type error" ++ show b
-                                       Left d -> T.TDouble d
+                                       Left d -> Thrift.toTValue (d :: Double)
 buildDoubleValue v = error $ "int64 type error" ++ show v
 
-mkJsonDoubleValue :: T.ThriftVal -> DA.Value
-mkJsonDoubleValue (T.TDouble i) = DA.Number (read (show i) :: S.Scientific)
+mkJsonDoubleValue :: Thrift.TValue -> DA.Value
+mkJsonDoubleValue (Thrift.TDouble i) = DA.Number (read (show i) :: S.Scientific)
 mkJsonDoubleValue v = error $ "double type error" ++ show v
 
 
 buildListValue :: Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos)
                -> LT.TypeReference Text.Megaparsec.Pos.SourcePos
                -> DA.Value
-               -> T.ThriftVal
-buildListValue ps typeName (DA.Array arr) =  T.TList (T.T_LIST $ typeTransformer typeName) $ map (buildValue ps typeName) $ V.toList arr
+               -> Thrift.TValue
+buildListValue ps typeName (DA.Array arr) =  Thrift.TList (typeTransformer typeName) $ map (buildValue ps typeName) $ V.toList arr
 buildListValue ps typeName v = error $ "list type error: type" ++ show typeName ++ " value :" ++ show v
 
 
 mkJsonArrayValue :: Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos)
                  -> LT.TypeReference Text.Megaparsec.Pos.SourcePos
-                 -> T.ThriftVal
+                 -> Thrift.TValue
                  -> DA.Value
-mkJsonArrayValue ps typeName (T.TList lType vals) =  DA.Array (V.fromList $ map (mkJsonValue ps typeName) vals)
+mkJsonArrayValue ps typeName (Thrift.TList _ vals) =  DA.Array (V.fromList $ map (mkJsonValue ps typeName) vals)
 mkJsonArrayValue ps typeName v = error $ "list type error" ++ show v
 
 
@@ -158,11 +145,11 @@ buildMapValue :: Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos)
               -> LT.TypeReference Text.Megaparsec.Pos.SourcePos
               -> LT.TypeReference Text.Megaparsec.Pos.SourcePos
               -> DA.Value
-              -> T.ThriftVal
+              -> Thrift.TValue
 buildMapValue ps keyTypeName valTypeName (DA.Object m) =
   let kvThriftVals = map (\ (k,v) -> ( (buildValue ps keyTypeName $ DA.String k)
                                      , (buildValue ps valTypeName v))) $ Map.toList m
-  in T.TMap (typeTransformer keyTypeName) (typeTransformer valTypeName) kvThriftVals
+  in Thrift.TMap (typeTransformer keyTypeName) (typeTransformer valTypeName) kvThriftVals
 
 buildMapValue ps keyTypeName valTypeName val = error $ "list type error" ++ show val
 
@@ -170,23 +157,23 @@ buildMapValue ps keyTypeName valTypeName val = error $ "list type error" ++ show
 mkJsonMapValue :: Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos)
                -> LT.TypeReference Text.Megaparsec.Pos.SourcePos
                -> LT.TypeReference Text.Megaparsec.Pos.SourcePos
-               -> T.ThriftVal
+               -> Thrift.TValue
                -> DA.Value
-mkJsonMapValue ps (LT.StringType _ _) valTypeName (T.TMap kType vType kvs) =
-  DA.Object $ Map.fromList $ map (\ (T.TString k,v) -> ( decodeUtf8 . B.toStrict $ k
-                                                       , (mkJsonValue ps valTypeName v))) kvs
+mkJsonMapValue ps (LT.StringType _ _) valTypeName (Thrift.TMap kType vType kvs) =
+  DA.Object $ Map.fromList $ map (\ (k,v) -> ( Thrift.fromTValue k
+                                             , mkJsonValue ps valTypeName v)) kvs
 
-mkJsonMapValue ps keyTypeName valTypeName (T.TMap kType vType kvs) =
-  DA.Object $ Map.fromList $ map (\ (k,v) -> ( pack $ show k
-                                             , (mkJsonValue ps valTypeName v))) kvs
+mkJsonMapValue ps keyTypeName valTypeName (Thrift.TMap kType vType kvs) =
+  DA.Object $ Map.fromList $ map (\ (k,v) -> ( Thrift.fromTValue k
+                                             , mkJsonValue ps valTypeName v)) kvs
 
 mkJsonMapValue ps keyTypeName valTypeName val = error $ "list type error" ++ show val
 
 buildDefinedTypeValue :: Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos)
-                      -> (LT.Type Text.Megaparsec.Pos.SourcePos)
+                      -> LT.Type Text.Megaparsec.Pos.SourcePos
                       -> Text
                       -> DA.Value
-                      -> T.ThriftVal
+                      -> Thrift.TValue
 buildDefinedTypeValue ps (LT.StructType decl) typeName v@(DA.Object mapVal) = buildStruct ps decl mapVal
 buildDefinedTypeValue ps (LT.TypedefType defType) typeName v = buildValue ps (LT.typedefTargetType defType) v
 buildDefinedTypeValue ps (LT.EnumType _) typeName v@(DA.Number b) = buildInt32Value v
@@ -196,9 +183,9 @@ buildDefinedTypeValue ps _ typeName val = error $ "struct or enum type error" ++
 mkJsonObjectTypeValue :: Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos)
                       -> LT.Type Text.Megaparsec.Pos.SourcePos
                       -> Text
-                      -> T.ThriftVal
+                      -> Thrift.TValue
                       -> DA.Value
-mkJsonObjectTypeValue ps (LT.StructType decl) typeName (T.TStruct mapVal) = mkJsonStruct ps decl mapVal
+mkJsonObjectTypeValue ps (LT.StructType decl) typeName (Thrift.TStruct mapVal) = mkJsonStruct ps decl $ Map.fromList mapVal
 mkJsonObjectTypeValue ps (LT.TypedefType defType) typeName v = mkJsonValue ps (LT.typedefTargetType defType) v
 mkJsonObjectTypeValue ps (LT.EnumType _) typeName v = mkJsonInt32Value v
 mkJsonObjectTypeValue ps _ typeName val = error $ "struct or enum type error" ++ show val
@@ -207,7 +194,7 @@ mkJsonObjectTypeValue ps _ typeName val = error $ "struct or enum type error" ++
 buildValue :: Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos)
            -> LT.TypeReference Text.Megaparsec.Pos.SourcePos
            -> DA.Value
-           -> T.ThriftVal
+           -> Thrift.TValue
 buildValue ps (LT.StringType _ _) v = buildStringValue v
 buildValue ps (LT.BinaryType _ _) v = buildStringValue v
 buildValue ps (LT.BoolType _ _ ) v = buildBoolValue v
@@ -225,7 +212,7 @@ buildValue ps (LT.DefinedType typeName _) v = case findDecl ps typeName of
 
 mkJsonValue :: Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos)
             -> LT.TypeReference Text.Megaparsec.Pos.SourcePos
-            -> T.ThriftVal
+            -> Thrift.TValue
             -> DA.Value
 mkJsonValue ps (LT.StringType _ _) v = mkJsonStringValue v
 mkJsonValue ps (LT.BinaryType _ _) v = mkJsonStringValue v
@@ -251,21 +238,21 @@ splitName name = let s = (splitOn "." $ unpack name)
 -- merge this function.
 buildField :: Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos)
            -> LT.Field Text.Megaparsec.Pos.SourcePos
-           -> DA.Object -> Maybe (I.Int16, (L.Text, T.ThriftVal))
+           -> DA.Object -> Maybe (Int, Thrift.TValue)
 buildField ps f o = case mfval of Nothing-> Nothing
-                                  Just fval -> Just (idx, ( L.fromStrict fname, buildValue ps ftype fval))
+                                  Just fval -> Just (idx, buildValue ps ftype fval)
   where fname = LT.fieldName f
         ftype = LT.fieldValueType f
-        idx = fromIntegral (M.fromJust $ LT.fieldIdentifier f) :: I.Int16
+        idx = fromIntegral (M.fromJust $ LT.fieldIdentifier f) :: Int
         mfval = Map.lookup fname o
 
 
 -- merge this function.
 mkField :: Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos)
         -> LT.Field Text.Megaparsec.Pos.SourcePos
-        -> (L.Text, T.ThriftVal)
+        -> Thrift.TValue
         -> DA.Pair
-mkField ps f kv@(k, v) = (fname, mkJsonValue ps ftype v)
+mkField ps f v = (fname, mkJsonValue ps ftype v)
   where fname = LT.fieldName f
         ftype = LT.fieldValueType f
 
@@ -273,25 +260,25 @@ mkField ps f kv@(k, v) = (fname, mkJsonValue ps ftype v)
 buildStruct :: Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos)
             -> LT.Struct Text.Megaparsec.Pos.SourcePos
             -> DA.Object
-            -> T.ThriftVal
-buildStruct ps decl obj = T.TStruct $ Map.fromList $ M.catMaybes buildFields
+            -> Thrift.TValue
+buildStruct ps decl obj = Thrift.TStruct $ M.catMaybes buildFields
   where fields = LT.structFields decl
-        buildFields :: [Maybe (I.Int16, (L.Text, T.ThriftVal))]
+        buildFields :: [Maybe (Int, Thrift.TValue)]
         buildFields = map (\f -> buildField ps f obj) fields
 
 
 mkJsonStruct :: Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos)
              -> LT.Struct Text.Megaparsec.Pos.SourcePos
-             -> Map.HashMap I.Int16 (L.Text, T.ThriftVal)
+             -> Map.HashMap Int Thrift.TValue
              -> DA.Value
 mkJsonStruct ps decl m = DA.Object $ Map.fromList $ M.catMaybes buildFields
   where fields = LT.structFields decl
         buildFields :: [Maybe DA.Pair]
         buildFields = map (\f -> let idx = fromIntegral . M.fromJust . LT.fieldIdentifier $ f
-                                     kv = Map.lookup idx m
-                                 in case kv of
+                                     v = Map.lookup idx m
+                                 in case v of
                                       Nothing -> Nothing
-                                      Just kv' -> Just $ mkField ps f kv') fields
+                                      Just v' -> Just $ mkField ps f v') fields
 
 
 findDecl :: Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos)
@@ -340,25 +327,22 @@ buildRequest :: Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos)
              -> Text
              -> Text
              -> DA.Object
-             -> T.ThriftVal
-buildRequest ps sName fName obj = T.TStruct $ Map.fromList $ M.catMaybes fields
+             -> Thrift.TValue
+buildRequest ps sName fName obj = Thrift.TStruct $ M.catMaybes fields
   where
-    p = M.fromJust (Map.lookup "" ps)
-    serviceDecl = findServiceDecl p sName
-    Just funcDecl = find (\x -> LT.functionName x == fName) $ LT.serviceFunctions serviceDecl
-    fields = map (\x-> buildField ps x obj) $ LT.functionParameters funcDecl
+    fields = map (\x-> buildField ps x obj) $ LT.functionParameters (findCurrentFuncDecl ps sName fName)
 
 
-buildTypeMap :: Text -> T.TypeMap
-buildTypeMap name = undefined
+--buildTypeMap :: Text -> T.TypeMap
+--buildTypeMap name = undefined
 
 
 buildResponse :: Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos)
               -> Text
               -> Text
-              -> T.ThriftVal
+              -> Thrift.TValue
               -> DA.Value
-buildResponse ps sName fName tVal = mkJsonStruct ps' decl mapVal
+buildResponse ps sName fName tVal = mkJsonStruct ps' decl $ Map.fromList mapVal
   where
     structDecl :: Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos)
                -> Text
@@ -366,10 +350,16 @@ buildResponse ps sName fName tVal = mkJsonStruct ps' decl mapVal
     structDecl ps name = case findDecl ps name of
                        Just (ps, LT.StructType decl) -> (ps, decl)
                        Nothing -> error $ "can not find struct" ++ show name
-
-    p = M.fromJust (Map.lookup "" ps)
-    serviceDecl = findServiceDecl p sName
-    Just funcDecl = find (\x -> LT.functionName x == fName) $ LT.serviceFunctions serviceDecl
-    Just (LT.DefinedType retName _) = LT.functionReturnType funcDecl
+    Just (LT.DefinedType retName _) = LT.functionReturnType (findCurrentFuncDecl ps sName fName)
     (ps', decl) = structDecl ps retName
-    T.TStruct mapVal = tVal
+    Thrift.TStruct mapVal = tVal
+
+
+findCurrentFuncDecl :: Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos)
+                    -> Text
+                    -> Text
+                    -> LT.Function Text.Megaparsec.Pos.SourcePos
+findCurrentFuncDecl ps sName fName = let p = M.fromJust (Map.lookup "" ps)
+                                         serviceDecl = findServiceDecl p sName
+                                         Just funcDecl = find (\x -> LT.functionName x == fName) $ LT.serviceFunctions serviceDecl
+                                     in funcDecl

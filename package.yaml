@@ -24,13 +24,16 @@ dependencies:
 - filepath >= 1.4.2.1
 - megaparsec >=5.0 && <6.0
 - network >= 3.1.1.0
-- thrift == 0.10.0
+- thrift
 - language-thrift == 0.11.0.0
 - QuickCheck
 - aeson >= 1.4.5.0
 - aeson-pretty >= 0.8.8
 - bytestring
 - hashable
+- binary
+- thrift-haskell
+- tcp-streams
 #######-               , language-thrift
 - scientific
 - text

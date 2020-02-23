@@ -38,9 +38,14 @@ packages:
 # Dependency packages to be pulled from upstream that are not in the resolver
 # using the same syntax as the packages field.
 # (e.g., acme-missiles-0.3)
-extra-deps: [ thrift-0.10.0
-            , language-thrift-0.11.0.0
-            ]
+extra-deps:
+- thrift-0.11.0
+- language-thrift-0.11.0.0
+- git: https://github.com/mut0u/thrift-haskell.git
+  commit: 7959421d7a5a2d258cc8730afcec8a90ef9007e0
+  subdirs:
+    - thrift-haskell
+
 
 # Override default flag values for local packages and extra-deps
 # flags: {}
