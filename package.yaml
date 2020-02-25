@@ -34,6 +34,7 @@ dependencies:
 - binary
 - thrift-haskell
 - tcp-streams
+- containers
 #######-               , language-thrift
 - scientific
 - text

@@ -1,12 +1,13 @@
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PackageImports #-}
 module Main where
 
 
 import Data.Text (pack, unpack)
-import Cmd.Lib (sendFunc, buildRequest)
+import Cmd.Lib (buildRequest)
+import Cmd.Protocol (sendFunc)
 import qualified Data.Aeson as DA
 import Data.Aeson.Encode.Pretty (encodePretty)
 import qualified Data.ByteString.Lazy.Char8 as B
@@ -20,8 +21,8 @@ import qualified Text.Read hiding (read)
 import qualified GHC.IO.Handle as H
 import System.IO (IOMode(..))
 import Network.Socket as NS
-import Thrift.Protocol.Binary
-import Thrift.Transport.Handle
+--import Thrift.Protocol.Binary
+--import Thrift.Transport.Handle
 import Options.Applicative
 import qualified Options.Applicative.Help.Pretty as P
 import Options.Applicative.Help.Pretty ((.$.))
@@ -73,12 +74,11 @@ buildResponse resp = undefined
 
 main = do
   args@Args{..} <-execParser opts
-  let regex = arguments =~ ( "(\\w+)//(\\S+):(\\S+)/(\\S+)/(\\S+)" :: String) :: [[String]]
-  let [[_,prop, ip, port, sName, fName]] = regex
+  let [[_,prop, ip, port, sName, fName]] = arguments =~ ( "(\\w+)//(\\S+):(\\S+)/(\\S+)/(\\S+)" :: String) :: [[String]]
   let fileDir = takeDirectory $ M.fromJust file
   Right p <- LT.parseFromFile $ M.fromJust file
   headerFilesPath' <- mapM (\ (LT.HeaderInclude h) -> do
-                               let filePath = fileDir ++ "/" ++ (unpack $ LT.includePath h)
+                               let filePath = fileDir ++ "/" ++ unpack (LT.includePath h)
                                let fileName = takeBaseName filePath
                                Right decl <- LT.parseFromFile filePath
                                return (fileName, decl)
@@ -88,7 +88,7 @@ main = do
   let hm = Map.fromList headerFilesPath'
   let ps = Map.insert "" p hm
   let jsonObject = parsePayload payload payloadType
-  transport <- openTransport ip ((fromIntegral port) :: PortNumber)
+  transport <- openTransport ip (read port :: PortNumber)
   result <- sendFunc (binaryProtocol, transport) ps (pack sName) (pack fName) $ M.fromJust jsonObject
   B.putStrLn $ encodePretty result
 

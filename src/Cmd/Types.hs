@@ -147,8 +147,8 @@ buildMapValue :: Map.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos)
               -> DA.Value
               -> Thrift.TValue
 buildMapValue ps keyTypeName valTypeName (DA.Object m) =
-  let kvThriftVals = map (\ (k,v) -> ( (buildValue ps keyTypeName $ DA.String k)
-                                     , (buildValue ps valTypeName v))) $ Map.toList m
+  let kvThriftVals = map (\ (k,v) -> ( buildValue ps keyTypeName $ DA.String k
+                                     , buildValue ps valTypeName v)) $ Map.toList m
   in Thrift.TMap (typeTransformer keyTypeName) (typeTransformer valTypeName) kvThriftVals
 
 buildMapValue ps keyTypeName valTypeName val = error $ "list type error" ++ show val
@@ -164,7 +164,7 @@ mkJsonMapValue ps (LT.StringType _ _) valTypeName (Thrift.TMap kType vType kvs) 
                                              , mkJsonValue ps valTypeName v)) kvs
 
 mkJsonMapValue ps keyTypeName valTypeName (Thrift.TMap kType vType kvs) =
-  DA.Object $ Map.fromList $ map (\ (k,v) -> ( Thrift.fromTValue k
+  DA.Object $ Map.fromList $ map (\ (k,v) -> ( pack $ show k
                                              , mkJsonValue ps valTypeName v)) kvs
 
 mkJsonMapValue ps keyTypeName valTypeName val = error $ "list type error" ++ show val

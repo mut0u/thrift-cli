@@ -28,12 +28,12 @@ packages:
     git: https://github.com/mut0u/thrift-haskell.git
     pantry-tree:
       size: 994
-      sha256: a0534ce32d93993fc5e68b0df98447e031fb957e5fb26c085f28cd66ab65891c
-    commit: 7959421d7a5a2d258cc8730afcec8a90ef9007e0
+      sha256: 7f28a8a31ff9ce0a3892c71a5599406ce617d9fb21cf357916530edf4d065975
+    commit: 8a95dfa51356aad31b7cf5f6d6376efd057e7cf5
   original:
     subdir: thrift-haskell
     git: https://github.com/mut0u/thrift-haskell.git
-    commit: 7959421d7a5a2d258cc8730afcec8a90ef9007e0
+    commit: 8a95dfa51356aad31b7cf5f6d6376efd057e7cf5
 snapshots:
 - completed:
     size: 545658

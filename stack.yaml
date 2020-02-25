@@ -42,7 +42,7 @@ extra-deps:
 - thrift-0.11.0
 - language-thrift-0.11.0.0
 - git: https://github.com/mut0u/thrift-haskell.git
-  commit: 7959421d7a5a2d258cc8730afcec8a90ef9007e0
+  commit: 8a95dfa51356aad31b7cf5f6d6376efd057e7cf5
   subdirs:
     - thrift-haskell
 
