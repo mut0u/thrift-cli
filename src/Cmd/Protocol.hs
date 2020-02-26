@@ -24,10 +24,11 @@ import qualified Text.Megaparsec.Pos
 import qualified Data.Aeson.Types as DA
 
 
-sendFunc :: (TH.Protocol, TH.Transport) -> HS.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos) -> Text -> Text -> DA.Object -> IO DA.Value
-sendFunc (p, t) ps sName fName vals = do
+sendFunc :: (TH.Protocol, TH.Transport) -> HS.HashMap String (LT.Program Text.Megaparsec.Pos.SourcePos) -> (Text, Text, DA.Object) -> IO DA.Value
+sendFunc (p, t) ps (sName, fName, vals) = do
   let req = buildRequest ps sName fName vals
+  -- liftIO $ print req
   TH.TStruct res <- TH.rawFuncCall fName p t req
   let s = fromJust $ IM.lookup 0 (TH.mkIntMap res)
-  liftIO $ print s
+  -- liftIO $ print s
   return $ buildResponse ps sName fName s

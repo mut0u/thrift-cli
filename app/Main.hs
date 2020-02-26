@@ -89,9 +89,8 @@ main = do
   let ps = Map.insert "" p hm
   let jsonObject = parsePayload payload payloadType
   transport <- openTransport ip (read port :: PortNumber)
-  result <- sendFunc (binaryProtocol, transport) ps (pack sName) (pack fName) $ M.fromJust jsonObject
+  result <- sendFunc (binaryProtocol, transport) ps (pack sName, pack fName, M.fromJust jsonObject)
   B.putStrLn $ encodePretty result
-
   where
     opts = info (helper <*> parseArgs)
       (fullDesc <> header "thrift cli")
