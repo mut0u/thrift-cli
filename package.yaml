@@ -22,10 +22,10 @@ description:         Please see the README on GitHub at <https://github.com/mut0
 dependencies:
 - base >= 4.7 && < 5
 - filepath >= 1.4.2.1
-- megaparsec >=5.0 && <6.0
-- network >= 3.1.1.0
+- megaparsec
+- network
 - thrift
-- language-thrift == 0.11.0.0
+- language-thrift == 0.12.0.0
 - QuickCheck
 - aeson >= 1.4.5.0
 - aeson-pretty >= 0.8.8
@@ -33,7 +33,6 @@ dependencies:
 - hashable
 - binary
 - thrift-haskell
-- tcp-streams
 - containers
 #######-               , language-thrift
 - scientific
@@ -43,8 +42,8 @@ dependencies:
 - vector
 - optparse-applicative >= 0.14.3.0
 - regex-pcre >= 0.94.4
-
-
+- tcp-streams
+- wire-streams
 
 
 library:

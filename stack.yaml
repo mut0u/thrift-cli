@@ -17,7 +17,7 @@
 #
 # resolver: ./custom-snapshot.yaml
 # resolver: https://example.com/snapshots/2018-01-01.yaml
-resolver: lts-14.12
+resolver: lts-17.2
 
 # User packages to be built.
 # Various formats can be used as shown in the example below.
@@ -40,11 +40,14 @@ packages:
 # (e.g., acme-missiles-0.3)
 extra-deps:
 - thrift-0.11.0
-- language-thrift-0.11.0.0
+- language-thrift-0.12.0.0
 - git: https://github.com/mut0u/thrift-haskell.git
-  commit: 8a95dfa51356aad31b7cf5f6d6376efd057e7cf5
+  commit: ec1c26c85bfa8078410a13e46889a73a9616ad3e
   subdirs:
     - thrift-haskell
+- tcp-streams-1.0.1.1
+- wire-streams-0.1.1.0
+- network-2.8.0.1
 
 
 # Override default flag values for local packages and extra-deps
