@@ -52,6 +52,13 @@ packages:
       sha256: 2dbdda2225969dcd452d983a2ac7e52341e5fc1df76103342c9fac08fc686931
   original:
     hackage: network-2.8.0.1
+- completed:
+    hackage: Z-Data-1.2.0.0@sha256:d378b7523fa07d331855cc977387e861c5ee331f8283d41cd5fa35a569474357,12228
+    pantry-tree:
+      size: 11120
+      sha256: bbcd0e64fd3226ab81698ff94f6eb1300c6151ae963998c870a9a6975e9a2a66
+  original:
+    hackage: Z-Data-1.2.0.0
 snapshots:
 - completed:
     size: 587126

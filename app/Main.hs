@@ -27,8 +27,9 @@ import Options.Applicative
 import qualified Options.Applicative.Help.Pretty as P
 import Options.Applicative.Help.Pretty ((.$.))
 import Data.Monoid ((<>))
-import Text.Regex.PCRE
 import qualified Data.Int as I
+import qualified Z.Data.Text.Regex as R -- (regex, match)
+import qualified Z.Data.Text.Base as ZB
 import System.FilePath.Posix (takeDirectory, takeBaseName, FilePath)
 
 import "thrift-haskell" Thrift.Protocol.Binary (binaryProtocol)
@@ -74,7 +75,7 @@ buildResponse resp = undefined
 
 main = do
   args@Args{..} <-execParser opts
-  let [[_,prop, ip, port, sName, fName]] = arguments =~ ( "(\\w+)//(\\S+):(\\S+)/(\\S+)/(\\S+)" :: String) :: [[String]]
+  let [prop, ip, port, sName, fName] = protocolParser $ ZB.pack arguments
   let fileDir = takeDirectory $ M.fromJust file
   Right p <- LT.parseFromFile $ M.fromJust file
   headerFilesPath' <- mapM (\ (LT.HeaderInclude h) -> do
@@ -92,5 +93,7 @@ main = do
   result <- sendFunc (binaryProtocol, transport) ps (pack sName, pack fName, M.fromJust jsonObject)
   B.putStrLn $ encodePretty result
   where
+    protocolParser arguments = let (_, m, _) = R.match (R.regex "(\\w+)//(\\S+):(\\S+)/(\\S+)/(\\S+)") arguments
+                               in map ZB.unpack $ M.catMaybes m
     opts = info (helper <*> parseArgs)
       (fullDesc <> header "thrift cli")

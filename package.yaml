@@ -41,7 +41,7 @@ dependencies:
 - unordered-containers
 - vector
 - optparse-applicative >= 0.14.3.0
-- regex-pcre >= 0.94.4
+- Z-Data
 - tcp-streams
 - wire-streams
 
